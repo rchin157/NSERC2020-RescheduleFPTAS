@@ -109,6 +109,15 @@ void getParams(int *p, int **delayed, int **ud){
 		char c;
 		while((c = getchar()) != '\n'){}
 	}
+	extern float epsilon;
+	while(1){
+		printf("Enter epsilon value: ");
+		float temp;
+		if(scanf("%f", &temp) == 1){
+			epsilon = temp;
+			char c;
+			while((c = getchar()) != '\n'){}
+			break;
 }
 
 /*****************************************

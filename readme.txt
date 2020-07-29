@@ -1,9 +1,9 @@
-Exact implementation of the algorithm as proposed in the rescheduling paper. Note: Although a few file names include "DP", the implementation ended up not being
-dynamic programming. However, implementation of the FPTAS seems to lend itself to an actual DP table.
-
+FPTAS implementation of the algorithm as proposed in the rescheduling paper.
+ 
 Running with -m makes it so the program will ask for s_i values.
 
 The jobs are to be supplied via txt file formatted as follows:
+
 ***
 number of jobs
 p_j e_j

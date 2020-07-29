@@ -10,6 +10,7 @@
 #include "automate.h"
 
 int mode = 0;
+float epsilon;
 
 int main(int argc, char *argv[]){
 	srand(time(0));

@@ -13,7 +13,10 @@ typedef struct State{
 	int tCompTime; //total completion time
 	int maxTardy;
 	int sumRejectCost;
+	int children;
+	short solnID;
 	struct State *parent;
+
 } State;
 #endif
 
