@@ -12,7 +12,7 @@
  * delayed: the address of a pointer to an array of delayed jobs
  * ud: the address of a pointer to an array of delayed jobs according to user provided numbering
  ***********************************************/
-void getParams(int *p, int **delayed, int **ud){
+void getParams(int *p, int **delayed, int **ud, float *epsilon){
 	//get info from stdin (user)
 
 	while(1){
@@ -74,18 +74,6 @@ void getParams(int *p, int **delayed, int **ud){
 		while((c = getchar()) != '\n'){}
 	}
 	while(1){
-		printf("Enter max allowable tardiness: ");
-		int temp;
-		if(scanf("%d", &temp) == 1){
-			p[MAXTARDINESS] = temp;
-			char c;
-			while((c = getchar()) != '\n'){}
-			break;
-		}
-		char c;
-		while((c = getchar()) != '\n'){}
-	}
-	while(1){
 		printf("Enter scaling factor: ");
 		int temp;
 		if(scanf("%d", &temp) == 1){
@@ -109,15 +97,18 @@ void getParams(int *p, int **delayed, int **ud){
 		char c;
 		while((c = getchar()) != '\n'){}
 	}
-	extern float epsilon;
 	while(1){
 		printf("Enter epsilon value: ");
 		float temp;
 		if(scanf("%f", &temp) == 1){
-			epsilon = temp;
+			*epsilon = temp;
 			char c;
 			while((c = getchar()) != '\n'){}
 			break;
+		}
+		char c;
+		while((c = getchar()) != '\n'){}
+	}
 }
 
 /*****************************************
@@ -213,12 +204,13 @@ int partitionJobs(int **jobs, int low, int high, int sortby){
  * jobs: pointer to jobs
  * numJobs: the number of jobs
  ******************************************************/
-void cleanupMem(int *delayed, int **jobs, int numJobs){
+void cleanupMem(int *delayed, int **jobs, int numJobs, int *v){
 	free(delayed);
 	for(int i = 0; i < numJobs; i++){
 		free(jobs[i]);
 	}
 	free(jobs);
+	free(v);
 }
 
 /**************************************************
@@ -231,17 +223,12 @@ int processArgs(int argc, char *argv[], int *mode){
 	if(argc == 1) return 0;
 	char *manual = "-m"; //manual mode, all info from user
 	char *automatic = "-g"; //automatic mode, all info generated
-	char *noBacktracking = "-n"; //no backtracking, for reduced memory consumption
 	if(strcmp(manual, argv[1]) == 0){
 		*mode = 1;
 		return 0;
 	}
 	if(strcmp(automatic, argv[1]) == 0){
 		*mode = 2;
-		return 0;
-	}
-	if(strcmp(noBacktracking, argv[1]) == 0){
-		*mode = 3;
 		return 0;
 	}
 	return -1;
@@ -288,26 +275,11 @@ void printJobs(int **jobs, int n){
 		printf("job %d\n", i+1);
 		const char *annote = "default";
 		switch(jobs[i][3]){
-			case EARLY:
-				annote = "E";
+			case DELAYED:
+				annote = "DELAYED";
 				break;
-			case LATE:
-				annote = "L";
-				break;
-			case pEARLY:
-				annote = "pE";
-				break;
-			case pLATE:
-				annote = "pL";
-				break;
-			case REJECT:
-				annote = "R";
-				break;
-			case EL:
-				annote = "EL";
-				break;
-			case pEL:
-				annote = "pEL";
+			case ONTIME:
+				annote = "ONTIME";
 				break;
 		}
 		printf("processing time: %d rejection cost: %d original completion time: %d note: %s\n", jobs[i][0], jobs[i][1], jobs[i][2], annote);
@@ -329,42 +301,6 @@ void calculateCj(int **jobs, int n, int m){
 		jobs[i][2] = sched[i % m];
 	}
 	free(sched);
-}
-
-/***********************************************
- * checks if the user given s values are valid
- * s: pointer to array of s values
- * jobs: pointer to 2d array of jobs
- * para: pointer to array of general parameters
- * UNUSED FUNCTION
- * not sure if this is necessary nor wholly complete
- ***********************************************/
-int checkSValues(int *s, int **jobs, int *para){
-	//get max processing time from early
-	int max = -1;
-	for(int i = 0; i < para[NUMJOBS]; i++){
-		switch(jobs[i][3]){
-			case EARLY:
-			case pEARLY:
-			case EL:
-			case pEL:
-				if(max == -1)
-					max = jobs[i][0];
-				else{
-					if(jobs[i][0] > max)
-						max = jobs[i][0];
-				}
-				break;
-			default:
-				break;
-		}
-	}
-	int upperBound = para[RD] - 1 + max;
-	for(int i = 0; i < para[NUMMACHINES]; i++){
-		if(s[i] < para[RD] || s[i] > upperBound)
-			return 0;
-	}
-	return 1;
 }
 
 /*****************************************
@@ -409,16 +345,98 @@ int partition(int *a, int low, int high){
  * calculates problem sparsness/density
  * para: array of problem parameters
  * jobs: array of jobs
- *****************************************/
+ ******************************************
 long double calculateProblemSparsness(int *para, int **jobs){
-	int pmax = jobs[0][0];
-	for(int i = 1; i < para[NUMJOBS]; i++){
-		if(jobs[i][0] > pmax)
-			pmax = jobs[i][0];
-	}
+	int pmax = pMax(jobs, para);
 	long double states = 2 * pow(para[NUMJOBS], para[NUMMACHINES] + 3) * pow(para[RD] + pmax, para[NUMMACHINES]) * pow(pmax, (2 * para[NUMMACHINES]) + 1) * para[MAXTARDINESS] * para[REJECTIONCOSTBOUND];
 	long double trues = pow((2 * para[NUMMACHINES]) + 1, para[NUMJOBS]);
 	//printf("states: %Lf\n", states);
 	//printf("trues: %Lf\n", trues);
 	return (long double)(trues / states);
 }
+*/
+
+void calcDeltaV0(int **jobs, int *para, float *epsilon, float *delta, int **v){
+	int pmax = pMax(jobs, para);
+       	*delta = 1.0 + (float)(*epsilon / (2 * para[NUMJOBS]));
+	double logthing = (double)((para[RD] - 1 + pmax) / para[RD]);
+	*v = (int *)malloc(sizeof(int) * ((2 * para[NUMMACHINES]) + 3));
+	(*v)[0] = para[NUMJOBS] + (int)ceil(myLog((double)*delta, logthing));
+
+	return;
+}
+
+void calcVl(int **jobs, int *para, float delta, int *v, int *s){
+	int pmax = pMax(jobs, para);
+	int S1 = para[NUMJOBS] * pmax;
+	int S3 = s[0] + (para[NUMJOBS] * pmax);
+	int S2 = para[NUMJOBS] * S3;
+	int S4 = para[REJECTIONCOSTBOUND];
+	for(int i = 1; i <= (2 * para[NUMMACHINES]) + 3; i++){
+		if(i <= para[NUMMACHINES])
+			v[i] = (int)ceil(myLog((double)delta, (double)s[i - 1]));
+		else if(i <= 2 * para[NUMMACHINES])
+			v[i] = (int)ceil(myLog((double)delta, (double)S1));
+		else if(i == (2 * para[NUMMACHINES]) + 1)
+			v[i] = (int)ceil(myLog((double)delta, (double)S2));
+		else if(i == (2 * para[NUMMACHINES]) + 2)
+			v[i] = (int)ceil(myLog((double)delta, (double)S3));
+		else if(i == (2 * para[NUMMACHINES]) + 3)
+			v[i] = (int)ceil(myLog((double)delta, (double)S4));
+	}
+}
+
+double myLog(double base, double result){
+	return (double)(log(result) / log(base));
+}
+
+int pMax(int **jobs, int *para){
+	int pmax = jobs[0][0];
+	for(int i = 1; i < para[NUMJOBS]; i++){
+		if(jobs[i][0] > pmax)
+			pmax = jobs[i][0];
+	}
+	return pmax;
+}
+
+genericArr *buildArr(int *vl, int l, int level){
+	genericArr *temp = (genericArr *)malloc(sizeof(genericArr));
+	if(level < l - 1)
+		temp -> arr = malloc(sizeof(genericArr *) * (vl[level] + 1));
+	else{
+		temp -> arr = calloc(vl[level] + 1, sizeof(int));
+		return temp;
+	}
+	for(int i = 0; i <= vl[level]; i++){
+		((genericArr **)(temp -> arr))[i] = buildArr(vl, l, level + 1);
+	}
+	return temp;
+}
+
+int arrGet(genericArr *temp, int *pos, int l){
+	genericArr *current = ((genericArr **)(temp -> arr))[pos[0]];
+	for(int i = 1; i < l - 1; i++){
+		current = ((genericArr **)(current -> arr))[pos[i]];
+	}
+	return ((int *)(current -> arr))[pos[l - 1]];
+}
+
+void arrSet(genericArr *temp, int *pos, int l, int val){
+	genericArr *current = ((genericArr **)(temp -> arr))[pos[0]];
+	for(int i = 1; i < l - 1; i++){
+		current = ((genericArr **)(current -> arr))[pos[i]];
+	}
+	((int *)(current -> arr))[pos[l - 1]] = val;
+	return;
+}
+
+void freeArr(genericArr *temp, int *vl, int l, int level){
+	if(level < l - 1){
+		for(int i = 0; i < vl[level] + 1; i++)
+			freeArr(((genericArr **)(temp -> arr))[i], vl, l, level + 1);
+	}
+	free(temp -> arr);
+	free(temp);
+	return;
+}
+

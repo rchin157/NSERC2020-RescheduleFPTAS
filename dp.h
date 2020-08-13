@@ -18,7 +18,7 @@ typedef struct TerminalNode{
 } TerminalNode;
 
 //responsible for running the exact algorithm
-State *reschedule(int **, int *, int *);
+State *reschedule(int **, int *, int *, int *, float);
 void generateChildren(int **, int, int *, int *, State *, State **);
 State *prepass(int **, int *);
 void markSolution(State *);

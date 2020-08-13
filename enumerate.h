@@ -10,8 +10,6 @@
 #endif
 
 //enumerate on s values
-State *enumerate(int **, int *, int *);
-void runCombinations(int *, int [], int, int, int, int, int **, int *, State **, int *);
+State *enumerate(int **, int *, int *, float, int *);
+void runCombinations(int *, int [], int, int, int, int, int **, int *, State **, int *, int *, float);
 
-int enumerateNB(int **, int *, int *);
-void runCombinationsNB(int *, int [], int, int, int, int, int **, int *, int *);

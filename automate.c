@@ -17,8 +17,6 @@
 #define RSCALE 10
 //scaling factor upper bound
 #define SUPPER 5
-//tardiness limit upper bound
-#define TUPPER 30
 
 /****************************************
  * creates a set of jobs in SPT order
@@ -49,7 +47,7 @@ void generateJobs(int ***jobs, int *para){
  * para: a pointer to an int array of general parameters for the problem
  * delayed: the address of a pointer to an array of delayed jobs
  *********************************************/
-void generateInstance(int *para, int **delayed){
+void generateInstance(int *para, int **delayed, float *eps){
 	//set the number of delayed jobs
 	para[NUMDELAYED] = (rand() % para[NUMJOBS]) + 1;
 	//set the number of machines
@@ -58,10 +56,10 @@ void generateInstance(int *para, int **delayed){
 	para[REJECTIONCOSTBOUND] = ((rand() % RUPPER) + 1) * ((para[NUMJOBS] / RSCALE) + 1);
 	//set scaling factor
 	para[SCALINGFACTOR] = (rand() % SUPPER) + 1;
-	//set the max allowable tardiness
-	para[MAXTARDINESS] = (rand() % TUPPER) + 1;
 	//set RD, should scale with jobs
 	para[RD] = (rand() % (PUPPER * ((para[NUMJOBS] / RSCALE) + 1))) + 1;
+
+	*eps = (float)(1.0 / ((rand() % 10) + 1));
 
 	//create a set of delayed jobs
 	*delayed = (int *)malloc(sizeof(int) * para[NUMDELAYED]);

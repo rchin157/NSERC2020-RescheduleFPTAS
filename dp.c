@@ -4,6 +4,7 @@
 #include "dp.h"
 #include "main.h"
 #include "annotate.h"
+#include "util.h"
 
 //global minimum
 int minAchieved = -1;
@@ -15,11 +16,15 @@ int nextSolnID = 1;
  * para: a pointer to an array of general parameters
  * s: a pointer to an array of machine start times for this problem
  ************************************************/
-State *reschedule(int **jobs, int *para, int *s){
+State *reschedule(int **jobs, int *para, int *s, int *vl, float delta){
 	//create inital State
 	State *root = (State *)calloc(1, sizeof(State));
 	root -> schedules = (int *)calloc(2 * para[NUMMACHINES], sizeof(int));
 	root -> parent = NULL;
+
+	for(int i = 0; i < (2 * para[NUMMACHINES]) + 4; i++){
+		
+	}
 
 	//build tree
 	State *soln = NULL;
@@ -45,28 +50,11 @@ State *reschedule(int **jobs, int *para, int *s){
  ****************************************************************************************************************/
 void generateChildren(int **jobs, int j, int *para, int *s, State *prnt, State **currentSoln){
 	switch(jobs[j][3]){
-		case EARLY:
-			acceptEarly(jobs, j, para, s, prnt, currentSoln);
-			break;
-		case LATE:
-			acceptLate(jobs, j, para, s, prnt, currentSoln);
-			break;
-		case pEARLY:
-			acceptEarly(jobs, j, para, s, prnt, currentSoln);
-			reject(jobs, j, para, s, prnt, currentSoln);
-			break;
-		case pLATE:
-			acceptLate(jobs, j, para, s, prnt, currentSoln);
-			reject(jobs, j, para, s, prnt, currentSoln);
-			break;
-		case REJECT:
-			reject(jobs, j, para, s, prnt, currentSoln);
-			break;
-		case EL:
+		case ONTIME:
 			acceptEarly(jobs, j, para, s, prnt, currentSoln);
 			acceptLate(jobs, j, para, s, prnt, currentSoln);
 			break;
-		case pEL:
+		case DELAYED:
 			acceptEarly(jobs, j, para, s, prnt, currentSoln);
 			acceptLate(jobs, j, para, s, prnt, currentSoln);
 			reject(jobs, j, para, s, prnt, currentSoln);
@@ -109,28 +97,11 @@ int checkValidSoln(State *soln, int *para, int *s){
 void acceptEarly(int **jobs, int j, int *para, int *s, State *prnt, State **currentSoln){
 	for(int i = 0; i < para[NUMMACHINES]; i++){
 		//for each machine where the job can be added a state is generated
-		if(prnt -> schedules[i] < para[RD] && prnt -> schedules[i] + jobs[j][0] <= s[i] && prnt -> schedules[i] + jobs[j][0] - jobs[j][2] <= para[MAXTARDINESS]){
+		if(prnt -> schedules[i] < para[RD] && prnt -> schedules[i] + jobs[j][0] <= s[i]){
 			//check if over global min, if so the state is not generated
 			if((minAchieved != -1) && (prnt -> schedules[i] + jobs[j][0] + prnt -> tCompTime + prnt -> sumRejectCost) + (prnt -> maxTardy >
 				(prnt -> schedules[i] + jobs[j][0] - jobs[j][2]) ? para[SCALINGFACTOR] * prnt -> maxTardy :
 			       	para[SCALINGFACTOR] * (prnt -> schedules[i] + jobs[j][0] - jobs[j][2])) >= minAchieved)
-				continue;
-			int sum1 = 0;
-			for(int l = 0; l < para[NUMMACHINES]; l++){
-				if(s[l] > para[RD]){
-					if(l == i)
-						sum1 += (s[l] - (prnt -> schedules[l] + jobs[j][0]));
-					else
-						sum1 += (s[l] - prnt -> schedules[l]);
-				}
-			}
-			int sum2 = 0;
-			for(int l = j + 1; l < para[NUMJOBS]; l++){
-				if(jobs[l][3] == EARLY || jobs[l][3] == pEARLY || jobs[l][3] == EL || jobs[l][3] == pEL)
-					sum2 += jobs[l][0];
-			}
-			
-			if(sum2 < sum1)
 				continue;
 			//allocate state struct
 			State *temp = (State *)malloc(sizeof(State));
@@ -186,63 +157,46 @@ void acceptEarly(int **jobs, int j, int *para, int *s, State *prnt, State **curr
  ***********************************************************************************************************/
 void acceptLate(int **jobs, int j, int *para, int *s, State *prnt, State **currentSoln){
 	for(int i = para[NUMMACHINES]; i < 2 * para[NUMMACHINES]; i++){
-		//for each machine where the job can be added to the later schedule a state is generated
-		if(s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] - jobs[j][2] <= para[MAXTARDINESS]){
-			//check if over global min, if so the state is not generated
-			if(minAchieved != -1 && (s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] + prnt -> tCompTime + prnt -> sumRejectCost) + (prnt -> maxTardy
-				> (s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] - jobs[j][2]) ?
-				para[SCALINGFACTOR] * prnt -> maxTardy : para[SCALINGFACTOR] * (s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] - jobs[j][2])) >= minAchieved)
+		//check if over global min, if so the state is not generated
+		if(minAchieved != -1 && (s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] + prnt -> tCompTime + prnt -> sumRejectCost) + (prnt -> maxTardy
+			> (s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] - jobs[j][2]) ?
+			para[SCALINGFACTOR] * prnt -> maxTardy : para[SCALINGFACTOR] * (s[i - para[NUMMACHINES]] + prnt -> schedules[i] + jobs[j][0] - jobs[j][2])) >= minAchieved)
+			continue;
+		//allocate state
+		State *temp = (State *)malloc(sizeof(State));
+		*temp = *prnt;
+		//setup new state info
+		temp -> jobNum = j;
+		temp -> children = 0;
+		temp -> solnID = 0;
+		//allocate space for new nodes schedule
+		temp -> schedules = (int *)malloc(sizeof(int) * 2 * para[NUMMACHINES]);
+		//copy prnt schedule to child
+		memcpy(temp -> schedules, prnt -> schedules, sizeof(int) * 2 * para[NUMMACHINES]);
+		temp -> schedules[i] += jobs[j][0];
+		temp -> tCompTime += s[i - para[NUMMACHINES]] + temp -> schedules[i];
+		temp -> parent = prnt;
+		//update max tardiness
+		if(s[i - para[NUMMACHINES]] + temp -> schedules[i] - jobs[j][2] > temp -> maxTardy)
+			temp -> maxTardy = s[i - para[NUMMACHINES]] + temp -> schedules[i] - jobs[j][2];
+		if(j >= para[NUMJOBS] - 1 ){
+			if(checkValidSoln(temp, para, s)){
+				markSolution(temp);
+				if(*currentSoln != NULL)
+					freeOldSoln(*currentSoln);
+				*currentSoln = temp;
+				nextSolnID %= 4;
+				nextSolnID += 1;
+				minAchieved = temp -> tCompTime + temp -> sumRejectCost + (para[SCALINGFACTOR] * temp -> maxTardy);
+			} else{
+				freeRealEstate(temp);
 				continue;
-			int sum1 = 0;
-			for(int l = 0; l < para[NUMMACHINES]; l++){
-				if(s[l] > para[RD])
-					sum1 += (s[l] - prnt -> schedules[l]);
 			}
-			int sum2 = 0;
-			for(int l = j + 1; l < para[NUMJOBS]; l++){
-				if(jobs[l][3] == EARLY || jobs[l][3] == pEARLY || jobs[l][3] == EL || jobs[l][3] == pEL)
-					sum2 += jobs[l][0];
-			}
-			
-			if(sum2 < sum1)
-				continue;
-			//allocate state
-			State *temp = (State *)malloc(sizeof(State));
-			*temp = *prnt;
-			//setup new state info
-			temp -> jobNum = j;
-			temp -> children = 0;
-			temp -> solnID = 0;
-			//allocate space for new nodes schedule
-			temp -> schedules = (int *)malloc(sizeof(int) * 2 * para[NUMMACHINES]);
-			//copy prnt schedule to child
-			memcpy(temp -> schedules, prnt -> schedules, sizeof(int) * 2 * para[NUMMACHINES]);
-			temp -> schedules[i] += jobs[j][0];
-			temp -> tCompTime += s[i - para[NUMMACHINES]] + temp -> schedules[i];
-			temp -> parent = prnt;
-			//update max tardiness
-			if(s[i - para[NUMMACHINES]] + temp -> schedules[i] - jobs[j][2] > temp -> maxTardy)
-				temp -> maxTardy = s[i - para[NUMMACHINES]] + temp -> schedules[i] - jobs[j][2];
-			if(j >= para[NUMJOBS] - 1 ){
-				if(checkValidSoln(temp, para, s)){
-					markSolution(temp);
-					if(*currentSoln != NULL)
-						freeOldSoln(*currentSoln);
-					*currentSoln = temp;
-					nextSolnID %= 4;
-					nextSolnID += 1;
-					minAchieved = temp -> tCompTime + temp -> sumRejectCost + (para[SCALINGFACTOR] * temp -> maxTardy);
-				} else{
-					freeRealEstate(temp);
-					continue;
-				}
-			}
-			//increment the number of child states generated
-			prnt -> children += 1;
-
-			if(j < para[NUMJOBS] - 1){ //if job j is not a leaf
-				generateChildren(jobs, j + 1, para, s, temp, currentSoln);
-			}
+		}
+		//increment the number of child states generated
+		prnt -> children += 1;
+		if(j < para[NUMJOBS] - 1){ //if job j is not a leaf
+			generateChildren(jobs, j + 1, para, s, temp, currentSoln);
 		}
 	}
 }
@@ -261,19 +215,6 @@ void reject(int **jobs, int j, int *para, int *s, State *prnt, State **currentSo
 	if(prnt -> sumRejectCost + jobs[j][1] <= para[REJECTIONCOSTBOUND]){
 		//check if over global min, if so state is not generated
 		if(minAchieved != -1 && (prnt -> tCompTime + (prnt -> sumRejectCost + jobs[j][1]) + (prnt -> maxTardy * para[SCALINGFACTOR])) >= minAchieved)
-			return;
-		int sum1 = 0;
-		for(int l = 0; l < para[NUMMACHINES]; l++){
-			if(s[l] > para[RD])
-				sum1 += (s[l] - prnt -> schedules[l]);
-		}
-		int sum2 = 0;
-		for(int l = j + 1; l < para[NUMJOBS]; l++){
-			if(jobs[l][3] == EARLY || jobs[l][3] == pEARLY || jobs[l][3] == EL || jobs[l][3] == pEL)
-				sum2 += jobs[l][0];
-		}
-		
-		if(sum2 < sum1)
 			return;
 		//allocate state
 		State *temp = (State *)malloc(sizeof(State));
@@ -431,101 +372,5 @@ void determineAssignment(State *head, int m, int machine, int *transcribe){
 		printf("%d ", transcribe[head -> jobNum]);
 	else if(head -> schedules[machine - 1 + m] != head -> parent -> schedules[machine - 1 + m])
 		printf(".%d ", transcribe[head -> jobNum]);
-}
-
-State *prepass(int **jobs, int *para){
-	State *head = (State *)calloc(1, sizeof(State));
-	head -> schedules = (int *)calloc(2 * para[NUMMACHINES], sizeof(int));
-	head -> parent = NULL;
-
-	int proposed[para[NUMMACHINES]];
-	for(int i = 0; i < para[NUMMACHINES]; i++)
-		proposed[i] = 0;
-	int mTracker = 0;
-	for(int i = 0; i < para[NUMJOBS]; i++){
-		if(jobs[i][3] == EARLY || jobs[i][3] == pEARLY || jobs[i][3] == EL || jobs[i][3] == pEL){
-			proposed[mTracker % para[NUMMACHINES]] += jobs[i][0];
-			//allocate state struct
-			State *temp = (State *)malloc(sizeof(State));
-			*temp = *head;
-			//setup new state info
-			temp -> jobNum = i;
-			//allocate new space for machine schedules
-			temp -> schedules = (int *)malloc(sizeof(int) * 2 * para[NUMMACHINES]);
-			//copy prnt schedule to child
-			memcpy(temp -> schedules, head -> schedules, sizeof(int) * 2 * para[NUMMACHINES]);
-			temp -> schedules[mTracker % para[NUMMACHINES]] += jobs[i][0];
-			temp -> tCompTime += temp -> schedules[mTracker % para[NUMMACHINES]];
-			temp -> parent = head;
-			//update max tardiness
-			if(temp -> schedules[mTracker % para[NUMMACHINES]] - jobs[i][2] > temp -> maxTardy)
-				temp -> maxTardy = temp -> schedules[mTracker % para[NUMMACHINES]] - jobs[i][2];
-			head = temp;
-			mTracker++;
-		} else if(jobs[i][3] == REJECT){	
-			//allocate state
-			State *temp = (State *)malloc(sizeof(State));
-			*temp = *head;
-			//setup new state info
-			temp -> jobNum = i;
-			//allocate space for child schedule
-			temp -> schedules = (int *)malloc(sizeof(int) * 2 * para[NUMMACHINES]);
-			//copy prnt schedule to child
-			memcpy(temp -> schedules, head -> schedules, sizeof(int) * 2 * para[NUMMACHINES]);
-			temp -> parent = head;
-			temp -> sumRejectCost += jobs[i][1];
-			head = temp;
-		} else if(jobs[i][3] != LATE){
-			freeSolnList(head);
-			return NULL;
-		}
-	}
-	for(int i = 0; i < para[NUMMACHINES]; i++){
-		if(proposed[i] > para[RD]){
-			freeSolnList(head);
-			return NULL;
-		}
-	}
-	mTracker = 0;
-	for(int i = 0; i < para[NUMJOBS]; i++){
-		if(jobs[i][3] == LATE){
-			//allocate state
-			State *temp = (State *)malloc(sizeof(State));
-			*temp = *head;
-			//setup new state info
-			temp -> jobNum = i;
-			//allocate space for child schedule
-			temp -> schedules = (int *)malloc(sizeof(int) * 2 * para[NUMMACHINES]);
-			//copy prnt schedule to child
-			memcpy(temp -> schedules, head -> schedules, sizeof(int) * 2 * para[NUMMACHINES]);
-			temp -> schedules[(mTracker % para[NUMMACHINES]) + para[NUMMACHINES]] += jobs[i][0];
-			temp -> tCompTime += para[RD] + temp -> schedules[(mTracker % para[NUMMACHINES]) + para[NUMMACHINES]];
-			temp -> parent = head;
-			//update max tardiness
-			if(para[RD] + temp -> schedules[(mTracker % para[NUMMACHINES]) + para[NUMMACHINES]] - jobs[i][2] > temp -> maxTardy)
-				temp -> maxTardy = para[RD] + temp -> schedules[(mTracker % para[NUMMACHINES]) + para[NUMMACHINES]] - jobs[i][2];
-			mTracker++;
-			head = temp;
-		}
-	}
-	return head;
-}
-
-int rescheduleNB(int **jobs, int *para, int *s){
-	//create inital State
-	State *root = (State *)calloc(1, sizeof(State));
-	root -> schedules = (int *)calloc(2 * para[NUMMACHINES], sizeof(int));
-	root -> parent = NULL;
-
-	//build tree
-	State *soln = NULL;
-	generateChildren(jobs, 0, para, s, root, &soln);
-
-	if(soln != NULL){
-		freeSolnList(soln);
-		return 0;
-	}
-
-	return -1;
 }
 

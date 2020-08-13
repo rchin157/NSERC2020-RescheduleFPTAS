@@ -1,10 +1,5 @@
-#define EARLY 0
-#define LATE 1
-#define pEARLY 2
-#define pLATE 3
-#define REJECT 4
-#define EL 5
-#define pEL 6
+#define DELAYED 1
+#define ONTIME 0
 
 //methods for labeling jobs and setting labels to default
 void labelJobs(int **, int *, int *, int *);

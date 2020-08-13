@@ -1,10 +1,9 @@
 #define RD 0
 #define REJECTIONCOSTBOUND 1
-#define MAXTARDINESS 2
-#define SCALINGFACTOR 3
-#define NUMMACHINES 4
-#define NUMDELAYED 5
-#define NUMJOBS 6
+#define SCALINGFACTOR 2
+#define NUMMACHINES 3
+#define NUMDELAYED 4
+#define NUMJOBS 5
 
 #ifndef STATE
 typedef struct State{
@@ -16,7 +15,6 @@ typedef struct State{
 	int children;
 	short solnID;
 	struct State *parent;
-
 } State;
 #endif
 
