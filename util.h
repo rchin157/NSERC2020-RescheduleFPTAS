@@ -1,6 +1,22 @@
+#ifndef GA
+#define GA
 typedef struct genericarray{
 	void *arr;
 } genericArr;
+#endif
+
+#ifndef STATE
+#define STATE
+typedef struct State{
+	int jobNum;
+	int *schedules;
+	int tCompTime;
+	int maxTardy;
+	int sumRejectCost;
+	struct State *parent;
+	unsigned long id;
+} State;
+#endif
 
 //get info from user
 void getParams(int *, int **, int **, float *);
@@ -29,8 +45,10 @@ void calcDeltaV0(int **, int *, float *, float *, int **);
 void calcVl(int **, int *, float, int *, int *);
 double myLog(double, double);
 int pMax(int **, int *);
+void determineS(int *, int **, float, int *);
 //ndim array stuff
 genericArr *buildArr(int *, int, int);
-int arrGet(genericArr *, int *, int);
-void arrSet(genericArr *, int *, int, int);
+State *arrGet(genericArr *, int *, int);
+void arrSet(genericArr *, int *, int, State *);
 void freeArr(genericArr *, int *, int, int);
+void resetArr(genericArr *, int *, int, int);

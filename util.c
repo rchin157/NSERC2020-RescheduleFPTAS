@@ -1,7 +1,12 @@
+/* Written by Rylan Chin, Finalized August 2020
+ * Various utility functions for use throughout the program
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "dp.h"
 #include "util.h"
 #include "main.h"
 #include "annotate.h"
@@ -238,7 +243,7 @@ int processArgs(int argc, char *argv[], int *mode){
  * prints bad arguments message
  ********************/
 void reportBadArgs(){
-	printf("Bad arguments. Valid arguments include \"-m\", \"-g\", \"-n\", and no arguments. See readme for more.\n");
+	printf("Bad arguments. Valid arguments include \"-m\" and no arguments. See readme for more.\n");
 }
 
 /************************************
@@ -356,16 +361,32 @@ long double calculateProblemSparsness(int *para, int **jobs){
 }
 */
 
+/******************************************************************************
+ * calculates delta and v0 value and stores them
+ * jobs: a 2d array of jobs
+ * para: an array of parameters
+ * epsilon: a constant parameter used to calculate delta
+ * delta: a scaling parameter
+ * v: the array for v values
+ *****************************************************************************/
 void calcDeltaV0(int **jobs, int *para, float *epsilon, float *delta, int **v){
 	int pmax = pMax(jobs, para);
        	*delta = 1.0 + (float)(*epsilon / (2 * para[NUMJOBS]));
 	double logthing = (double)((para[RD] - 1 + pmax) / para[RD]);
-	*v = (int *)malloc(sizeof(int) * ((2 * para[NUMMACHINES]) + 3));
+	*v = (int *)malloc(sizeof(int) * ((2 * para[NUMMACHINES]) + 4));
 	(*v)[0] = para[NUMJOBS] + (int)ceil(myLog((double)*delta, logthing));
 
 	return;
 }
 
+/***************************************************************
+ * fills out the rest of the v values aside from v0
+ * jobs: a 2d array of jobs
+ * para: an array of parameters
+ * delta: a scaling parameter
+ * v: the array of v values
+ * s: array of possible later schedule start times
+ **************************************************************/
 void calcVl(int **jobs, int *para, float delta, int *v, int *s){
 	int pmax = pMax(jobs, para);
 	int S1 = para[NUMJOBS] * pmax;
@@ -386,10 +407,20 @@ void calcVl(int **jobs, int *para, float delta, int *v, int *s){
 	}
 }
 
+/****************************************
+ * implements the change of base formula
+ * base: the log base desired
+ * result: the log answer desired
+ ***************************************/
 double myLog(double base, double result){
 	return (double)(log(result) / log(base));
 }
 
+/*******************************
+ * finds the max processing time
+ * jobs: a 2d array of jobs
+ * para: array of parameters
+ ******************************/
 int pMax(int **jobs, int *para){
 	int pmax = jobs[0][0];
 	for(int i = 1; i < para[NUMJOBS]; i++){
@@ -399,12 +430,19 @@ int pMax(int **jobs, int *para){
 	return pmax;
 }
 
+/***********************************************
+ * allocates an array of the given dimensions
+ * vl: indicates array dimensions
+ * l: the length of vl
+ * level: indicates the current dimension
+ **********************************************/
 genericArr *buildArr(int *vl, int l, int level){
 	genericArr *temp = (genericArr *)malloc(sizeof(genericArr));
 	if(level < l - 1)
 		temp -> arr = malloc(sizeof(genericArr *) * (vl[level] + 1));
 	else{
-		temp -> arr = calloc(vl[level] + 1, sizeof(int));
+		//bottom level, calloc space for state pointers
+		temp -> arr = calloc(vl[level] + 1, sizeof(State *));
 		return temp;
 	}
 	for(int i = 0; i <= vl[level]; i++){
@@ -413,30 +451,97 @@ genericArr *buildArr(int *vl, int l, int level){
 	return temp;
 }
 
-int arrGet(genericArr *temp, int *pos, int l){
+/************************************************
+ * retrieve data from array
+ * temp: the top level pointer to the array
+ * pos: the position in the array to retrieve
+ * l: the length of pos
+ ***********************************************/
+State *arrGet(genericArr *temp, int *pos, int l){
 	genericArr *current = ((genericArr **)(temp -> arr))[pos[0]];
+	//reassigns current one dimension at a time until the bottom
 	for(int i = 1; i < l - 1; i++){
 		current = ((genericArr **)(current -> arr))[pos[i]];
 	}
-	return ((int *)(current -> arr))[pos[l - 1]];
+	return ((State **)(current -> arr))[pos[l - 1]];
 }
 
-void arrSet(genericArr *temp, int *pos, int l, int val){
+/********************************************************
+ * set data in the array
+ * temp: the top level pointer to the array
+ * pos: the position in the array to retrieve
+ * l: the length of pos
+ * s: the pointer to write into the array
+ *******************************************************/
+void arrSet(genericArr *temp, int *pos, int l, State *s){
 	genericArr *current = ((genericArr **)(temp -> arr))[pos[0]];
+	//reassigns current one dimension at a time
 	for(int i = 1; i < l - 1; i++){
 		current = ((genericArr **)(current -> arr))[pos[i]];
 	}
-	((int *)(current -> arr))[pos[l - 1]] = val;
+	((State **)(current -> arr))[pos[l - 1]] = s;
 	return;
 }
 
+/*********************************************************
+ * free allocated memory for the table and any data inside
+ * temp: the top level pointer to the array
+ * vl: indicates dimensions of the array
+ * l: the length of vl
+ * level: indicates the current dimension
+ ********************************************************/
 void freeArr(genericArr *temp, int *vl, int l, int level){
 	if(level < l - 1){
 		for(int i = 0; i < vl[level] + 1; i++)
 			freeArr(((genericArr **)(temp -> arr))[i], vl, l, level + 1);
+	} else{
+		for(int i = 0; i < vl[level] + 1; i++){
+			//free all data
+			if(((State **)(temp -> arr))[i] != NULL){
+				free(((State **)(temp -> arr))[i] -> schedules);
+				free(((State **)(temp -> arr))[i]);
+			}
+		}
 	}
+	//free array structure
 	free(temp -> arr);
 	free(temp);
 	return;
 }
 
+/*********************************************************************
+ * clear the data in the array
+ * temp: the top level pointer to the array
+ * vl: indicates the dimensions of the array
+ * l: the length of vl
+ * level: indicates the current dimension
+ ********************************************************************/
+void resetArr(genericArr *temp, int *vl, int l, int level){
+	if(level < l - 1){
+		for(int i = 0; i < vl[level] + 1; i ++)
+			resetArr(((genericArr **)(temp -> arr))[i], vl, l, level + 1);
+	} else{
+		for(int i = 0; i < vl[level] + 1; i++){
+			//remove and free data
+			if(((State **)(temp -> arr))[i] != NULL){
+				free(((State **)(temp -> arr))[i] -> schedules);
+				free(((State **)(temp -> arr))[i]);
+			}
+			//set pointer NULL
+			((State **)(temp -> arr))[i] = NULL;
+		}
+	}
+}
+
+/*********************************************************
+ * determine the possible s values for the problem
+ * para: array of problem parameters
+ * s: pointer to array to store s values
+ * delta: scaling parameter
+ * vl: array of v values
+ ********************************************************/
+void determineS(int *para, int **s, float delta, int *vl){
+	*s = (int *)malloc(sizeof(int) * vl[0]);
+	for(int i = 0; i < vl[0]; i++)
+		(*s)[i] = (int)floor((double)para[RD] * pow((double)delta, (double)i));
+}

@@ -92,20 +92,12 @@ int main(){
 				else
 					h = (esum * 2) / 3;
 				fprintf(instFile, "%d\n", h);
-				//set max tardiness
-				scale = rand() % 3;
-				int tardylimit;
-				if(scale == 0)
-					tardylimit = psum / 2;
-				else if(scale == 1)
-					tardylimit = (psum * 5) / 8;
-				else
-					tardylimit = (psum * 3) / 4;
-				fprintf(instFile, "%d\n", tardylimit);
 				//set scaling factor
 				fprintf(instFile, "3\n");
 				//set number of machines
 				fprintf(instFile, "%d\n", m[i]);
+				//set epsilon
+				fprintf(instFile, "10.0\n");
 				//set filename
 				sprintf(newjobs, "./numericaltesting/instances/%d_%d/jobs%d.txt", m[i], numJobs[j], k);
 				fprintf(instFile, "%s\n", newjobs);

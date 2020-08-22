@@ -1,9 +1,9 @@
-50
-5
-4 5 6 8 10
-100
-3
-2
-0.5
-testjobs.txt
+50		//rd
+5		//the number of delayed jobs
+4 5 6 8 10	//the delayed jobs
+100		//the maximum rejection cost
+3		//tardiness scaling factor
+2		//the number of machines
+15.0		//epsilon
+testjobs.txt	//jobs file
 

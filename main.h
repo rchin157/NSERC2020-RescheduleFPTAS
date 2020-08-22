@@ -6,15 +6,15 @@
 #define NUMJOBS 5
 
 #ifndef STATE
+#define STATE
 typedef struct State{
 	int jobNum;
 	int *schedules; //early/later for each machine, size will be 2m ints
 	int tCompTime; //total completion time
 	int maxTardy;
 	int sumRejectCost;
-	int children;
-	short solnID;
 	struct State *parent;
+	unsigned long id;
 } State;
 #endif
 

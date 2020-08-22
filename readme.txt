@@ -24,8 +24,6 @@ The jobs are to be supplied via txt file formatted as above.
 
 -----------------
 
-Running with -g will automatically generate all parameters and enumerate all valid combinations of s.
-
 ###
 
 The project now includes an instance generator under the numericaltesting folder. Running the program located there will generate a variety of instances.
@@ -38,5 +36,3 @@ running it again as it will simple write over the old ones.
 
 ###
 
-(Note: this option is essentially obsolete with version 3 as it provides inferior performance)
-Running with -n is identical to running with no arguments and will accept the same files. However no backtracking is performed, an upwards of 20% memory savings.

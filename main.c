@@ -1,18 +1,22 @@
+/* Written by Rylan Chin, Finalized August 2020
+ * Handles a given reschedule problem via two modes,
+ * manual and enumerate mode. Enumerate mode is default
+ * and does not require s values to be specified. Also
+ * solution reporting is handled.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <float.h>
 #include "util.h"
 #include "dp.h"
 #include "main.h"
 #include "annotate.h"
 #include "enumerate.h"
-#include "automate.h"
 
 int mode = 0;
 
 int main(int argc, char *argv[]){
-	srand(time(0));
 	//check args for mode, 0 userinput with s value enumeration, 1 full userinput, 2 fully automagic
 	if(processArgs(argc, argv, &mode) == -1){
 		reportBadArgs();
@@ -28,20 +32,15 @@ int main(int argc, char *argv[]){
 	float delta;
 	int *vl = NULL;
 	//get information either from user or automatically
-	if(mode != 2){
-		getParams(parameters, &delayed, &userDelayed, &epsilon);
-		getJobs(&jobs, parameters, delayed, userDelayed);
-	} else{
-		generateJobs(&jobs, parameters);
-		generateInstance(parameters, &delayed, &epsilon);
-	}
+	getParams(parameters, &delayed, &userDelayed, &epsilon);
+	getJobs(&jobs, parameters, delayed, userDelayed);
 
 	//calcultate the completion time of jobs
 	calculateCj(jobs, parameters[NUMJOBS], parameters[NUMMACHINES]);
 
 	//report problem information
-	printf("Jobs: %d,r_D: %d, rejection bound: %d, scaling factor: %d, machines: %d, number of delayed jobs: %d\n",
-		parameters[NUMJOBS], parameters[RD], parameters[REJECTIONCOSTBOUND], parameters[SCALINGFACTOR], parameters[NUMMACHINES], parameters[NUMDELAYED]);
+	printf("Jobs: %d,r_D: %d, rejection bound: %d, scaling factor: %d, machines: %d, number of delayed jobs: %d, epsilon%f\n",
+		parameters[NUMJOBS], parameters[RD], parameters[REJECTIONCOSTBOUND], parameters[SCALINGFACTOR], parameters[NUMMACHINES], parameters[NUMDELAYED], epsilon);
 	printf("internal delayed subset: ");
 	for(int i = 0; i < parameters[NUMDELAYED]; i++){
 		if(mode != 2)
@@ -51,12 +50,10 @@ int main(int argc, char *argv[]){
 	}
 	printf("\n");
 	free(userDelayed);
-
 /*
 	long double sparsness = calculateProblemSparsness(parameters, jobs);
 	printf("\nProblem Density(true/total): %.*Lf | %Le\n\n", DECIMAL_DIG, sparsness, sparsness);
 */
-
 	calcDeltaV0(jobs, parameters, &epsilon, &delta, &vl);
 
 	//printf("running reschedule\n");
@@ -74,6 +71,10 @@ int main(int argc, char *argv[]){
 		printf("\n");
 		//get vl values
 		calcVl(jobs, parameters, delta, vl, sValues);
+		//allocate table
+		genericArr *table[parameters[NUMJOBS]];
+		for(int i = 0; i < parameters[NUMJOBS]; i++)
+			table[i] = buildArr(vl, (2 * parameters[NUMMACHINES]) + 4, 1);
 		//print results
 		for(int i = 0; i <= 2 * parameters[NUMMACHINES] + 1; i++){
 			if(i == 0)
@@ -85,13 +86,12 @@ int main(int argc, char *argv[]){
 			else
 				printf("Z, T, R: %d, %d, %d\n", vl[i], vl[i + 1], vl[i + 2]);
 		}
-		/*
 		//label jobs for processing
 		labelJobs(jobs, delayed, sValues, parameters);
 		printf("Given Jobs\n");
 		printJobs(jobs, parameters[NUMJOBS]);
 		//run one instance of DP
-		State *soln = reschedule(jobs, parameters, sValues, vl, delta);
+		State *soln = reschedule(table, jobs, parameters, sValues, vl, delta);
 		if(soln != NULL){
 			//report result
 			printf("\nReport:\n");
@@ -109,12 +109,13 @@ int main(int argc, char *argv[]){
 			freeSolnList(soln);
 		} else
 			printf("No solution\n");
-		*/
 		free(sValues);
+		for(int i = 0; i < parameters[NUMJOBS]; i++)
+			freeArr(table[i], vl, (2 * parameters[NUMMACHINES]) + 4, 1);
 	} else if(mode == 0){
 		//enumerate on s_i
 		//printf("Enumerating...\n");
-		State *soln = enumerate(jobs, delayed, parameters, delta);
+		State *soln = enumerate(jobs, delayed, parameters, delta, vl);
 		if(soln != NULL){
 			//report result
 			printf("\nReport:\n");
@@ -137,34 +138,6 @@ int main(int argc, char *argv[]){
 				printf("%d ", bestS[i]);
 			printf("\n");
 			//report obj value
-			printf("Minimum objective value was: %d\n", objVal);
-			freeSolnList(soln);
-		} else
-			printf("No solution\n");
-		free(bestAnnotes);
-		free(bestS);
-	} else if(mode == 2){
-		//automatic mode
-		State *soln = enumerate(jobs, delayed, parameters, delta);
-		if(soln != NULL){
-			printf("\nReport:\n");
-			//set labels for printing
-			for(int i = 0; i < parameters[NUMJOBS]; i++)
-				jobs[i][3] = bestAnnotes[i];
-			printf("\n");
-			printJobs(jobs, parameters[NUMJOBS]);
-			int objVal = soln -> tCompTime + soln -> sumRejectCost + (parameters[SCALINGFACTOR] * soln -> maxTardy);
-			int transcribe[parameters[NUMJOBS]];
-			for(int i = 0; i < parameters[NUMJOBS]; i++)
-				transcribe[i] = i + 1;
-			//print backtracking
-			reportAssignments(soln, parameters[NUMMACHINES], transcribe);
-			//print s values of solution
-			printf("Optimal S values: ");
-			for(int i = 0; i < parameters[NUMMACHINES]; i++)
-				printf("%d ", bestS[i]);
-			printf("\n");
-			//report result
 			printf("Minimum objective value was: %d\n", objVal);
 			freeSolnList(soln);
 		} else

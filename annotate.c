@@ -1,3 +1,8 @@
+/* Written by Rylan Chin, Finalized August 2020
+ * Labelling jobs helps to reduce state generation later.
+ * Jobs may be labelled Ontime or delayed.
+ */
+
 #include "annotate.h"
 #include "main.h"
 
